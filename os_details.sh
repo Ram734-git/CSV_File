@@ -2,7 +2,7 @@
 str=${hostname}
 IPAddress1=""
 HOSTS=(${str//" "/ })
-echo "HOSTS: ${HOSTS}"
+
 today=`date '+%Y_%m_%d_%H%M_%S'`;
 for i in ${!HOSTS[*]} ; do 
 IPAddress1+=${HOSTS[i]}_
@@ -11,6 +11,7 @@ FileName=${IPAddress1}${today}
 IPAddress=${HOSTS[i]}
 echo "Host Details","FQDN","Version Details","Release","Internal_IPAddress","SSODSA","File System Details","Ping Details","Telnet Details" | paste -sd ',' >> ${FileName}.csv
 echo "Host Details","FQDN","Version Details","Release","Internal_IPAddress","SSODSA","File System Details","Ping Details","Telnet Details" | paste -sd ',' >> Ping_Details1_${FileName}.csv
+echo "Host Details","FQDN","Version Details","Release","Internal_IPAddress","SSODSA","File System Details","Ping Details","Telnet Details" | paste -sd ',' >> Telnet_Ping_Details_${FileName}.csv 
 
 for i in ${!HOSTS[*]} ; do 
 echo ${HOSTS[i]}
@@ -40,28 +41,28 @@ done
 echo "============out of loop=============="
 #echo $Hostname,$FQDN,$Version,$Release,$IPAddress,$SSODSA,$FSD
 c=0
-str1=${telnetports}
-ports=(${str1//" "/ })
+
+
 for i in ${!HOSTS[*]} ; do 
 PD=`ping -c 5 ${HOSTS[i]} | head -9 | tail -1` 
 fqdn1=`ssh -tt ec2-user@${HOSTS[i]} '( hostname -I)'`
 
 echo "Host:${HOSTS[i]}"
-echo "port:${ports[i]}"
+
 pingd=(${PD//","/ })
 for j in ${!pingd[*]} ; do 
 pd1+=${pingd[j]}_
 done
 
-td1=`(echo >/dev/tcp/${HOSTS[i]}/${ports[i]}) &>/dev/null && echo "Port Open" || echo "Port Closed"`
-td1=`echo "Telnet connected to ${HOSTS[i]} Port ${ports[i]} :-"$td1`
+# td1=`(echo >/dev/tcp/${HOSTS[i]}/${ports[i]}) &>/dev/null && echo "Port Open" || echo "Port Closed"`
+# td1=`echo "Telnet connected to ${HOSTS[i]} Port ${ports[i]} :-"$td1`
 
 
 fqdn1="$(echo -e "${fqdn1}" | tr -d '[:space:]')"
 
 a[$c]=$pd1 
 b[$c]=$fqdn1 
-d[$c]=$td1
+
 
 c=$((c+1));
 pd1=""
@@ -70,27 +71,47 @@ td1=""
 #awk -F"," 'BEGIN { OFS = "," } {$8="$PD"; print}' ${FileName}.csv > Ping_Details_${FileName}.csv
 #awk -v pdd="$pd1" -v ip="$ipaddress" -F ',' '$1=="Host Details" {print};$1=="ip-172-31-44-205.us-east-2.compute.internal"  {printf "%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n",$1,$2,$3,$4,$5,$6,$7,$8,pdd,$10}' OFS="," ${FileName}.csv > Ping_Details1_${FileName}.csv
 #awk -v city="$pd1" -v ip="${HOSTS[i]}" -F ',' '$5==ip && $9=="pingdetais" {gsub("pingdetais",city,$9); print}' OFS="," ${FileName}.csv > Ping_Details1_${FileName}.csv  
-echo "end of pd awk"
+
 done
 k=0
-e[0]="172.31.44.205 "
-e[1]="172.31.32.38"
 for i in ${!HOSTS[*]} ; do 
-Ip_In=${b[$k]}
+
 echo "value$k: ${a[$k]} "
 echo "FDN$k: ${b[$k]}"
-echo "TDS$k: ${d[$k]}"
-echo "TDSE$k: ${e[$k]}"
+
+
 
 #awk -v pdd="${a[k]}" -v fq="$Ip_In" -v t="${d[$k]}" -F ',' '{ if($1=="Host Details" {print};$5==fq	 {printf "%s,%s,%s,%s,%s,%s,%s,%s,%s\n",$1,$2,$3,$4,$5,$6,$7,pdd,t}' OFS="," ${FileName}.csv
 
-awk -v pdd="${a[k]}" -v fq="${b[$k]}" -v t="${d[$k]}" -F ',' '{ if($5==fq) {printf "%s,%s,%s,%s,%s,%s,%s,%s,%s\n",$1,$2,$3,$4,$5,$6,$7,pdd,t}}' OFS="," ${FileName}.csv >> Ping_Details1_${FileName}.csv 
+awk -v pdd="${a[k]}" -v fq="${b[$k]}"   -F ',' '{ if($5==fq) {printf "%s,%s,%s,%s,%s,%s,%s,%s,%s\n",$1,$2,$3,$4,$5,$6,$7,pdd,$9}}' OFS="," ${FileName}.csv >> Ping_Details1_${FileName}.csv 
 
 #awk -v pdd="${a[k]}" -v fq="${b[$k]}" -v t="${d[$k]}" -F ',' '$1=="Host Details" {print};$5=="'${b[$k]}'"  {printf "%s,%s,%s,%s,%s,%s,%s,%s,%s\n",$1,$2,$3,$4,$5,$6,$7,pdd,t}' OFS="," ${FileName}.csv  
 
-Ip_In=""
+
 k=$((k+1));
 done
+g=0
+str1=${telnetports}
+ports=(${str1//" "/ })
+for i in ${!HOSTS[*]} ; do 
+	for j in ${!ports[*]} ; do 
+		
+			td1=`(echo >/dev/tcp/${HOSTS[i]}/${ports[j]}) &>/dev/null && echo "Port Open" || echo "Port Closed"`
+			tdar[$i,$j]=`echo "Telnet connected to ${HOSTS[i]} Port ${ports[j]} :-"$td1`
+			echo "tdar$i_$j: ${tdar[$i,$j]}"
+	done
+	port_len=${#ports[@]}
+	
+	for l in ${!ports[*]} ; do
+	awk -v fq="${b[$g]}" -v pl="$port_len" -v tld="${tdar[$i,$l]}"  -F ',' '$5==fq {printf "%s,%s,%s,%s,%s,%s,%s,%s,%s\n",$1,$2,$3,$4,$5,$6,$7,$8,tld}' OFS="," Ping_Details1_${FileName}.csv >> Telnet_Ping_Details_${FileName}.csv 
+	done
+	g=$((g+1));
+done
+
+			
+	
+
+
 
 #sed 's/$/;"${PD}"/' ${FileName}.csv
 
