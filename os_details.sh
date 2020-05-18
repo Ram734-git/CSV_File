@@ -5,47 +5,109 @@ HOSTS=(${str//" "/ })
 echo "HOSTS: ${HOSTS}"
 today=`date '+%Y_%m_%d_%H%M_%S'`;
 for i in ${!HOSTS[*]} ; do 
-IPAddress1+=_${HOSTS[i]}
+IPAddress1+=${HOSTS[i]}_
 done
-FileName=${IPAddress1}_${today}
+FileName=${IPAddress1}${today}
 IPAddress=${HOSTS[i]}
-echo "Host Details","FQDN","Version Details","Release","IPAddress","File System Details","Ping Details","Telnet Details" | paste -sd ',' >> ${FileName}.csv
-pingde=""
-Td=""
+echo "Host Details","FQDN","Version Details","Release","Internal_IPAddress","SSODSA","File System Details","Ping Details","Telnet Details" | paste -sd ',' >> ${FileName}.csv
+echo "Host Details","FQDN","Version Details","Release","Internal_IPAddress","SSODSA","File System Details","Ping Details","Telnet Details" | paste -sd ',' >> Ping_Details1_${FileName}.csv
+
 for i in ${!HOSTS[*]} ; do 
 echo ${HOSTS[i]}
 #IPAddress=${HOSTS[i]}
-ssh -tt ec2-user@${HOSTS[i]} '(
-	pingde=""
-	Td=""
+ssh -tt -o StrictHostKeyChecking=no ec2-user@${HOSTS[i]} '(
     Hostname=`uname -a | cut -d " " -f 2`
 	FQDN=`hostname --all-fqdns`
 	Version=`uname -a | cut -d " " -f 3`
 	Release=`cat /etc/redhat-release`
+	Release1="Red Hat Enterprise Linux Server release 7.6 (Maipo)"
+	if [[ $Release == $Release1 ]]
+	then
+		SSODSA="This is Relesae 6.10"
+	else
+		SSODSA="this is Releasse 8"
+	fi
     #SSODSA=`/sbin/service ds_agent status | head -3`
 	FSD=`df -h`
 	IPAddress=$(hostname -I)
-	echo $Hostname,$FQDN,$Version,$Release,$IPAddress,$FSD,$pingde,$Td
+	IPAddress="$(echo -e "${IPAddress}" | tr -d '[:space:]')"
+	PD="pingdetais"
+	TD="td"
+	echo $Hostname,$FQDN,$Version,$Release,$IPAddress,$SSODSA,$FSD,$PD,$TD
 
     )'	| paste -sd ',' >> ${FileName}.csv
-
+done
 echo "============out of loop=============="
 #echo $Hostname,$FQDN,$Version,$Release,$IPAddress,$SSODSA,$FSD
+c=0
+str1=${telnetports}
+ports=(${str1//" "/ })
+for i in ${!HOSTS[*]} ; do 
+PD=`ping -c 5 ${HOSTS[i]} | head -9 | tail -1` 
+fqdn1=`ssh -tt ec2-user@${HOSTS[i]} '( hostname -I)'`
 
-
-#sed '7 s/""/"$PD"/' ${FileName}.csv
-
-#echo "Telnet Status :-" | sed -i 's/,/,/,/,/,/,/' >> NameofFile 
-pingde=`ping -c 5 ${HOSTS[i]} | head -9 | tail -1`
-echo "Ping details: $pingde"
-#sed 's/$/,$pingde/' ${FileName}.csv >> ${FileName}.csv
-awk -F"," 'BEGIN { OFS = "," } ; {$7="$pingde" OFS $6; print}' ${FileName}.csv 
-#sed '7 s/""/$pingde/'  ${FileName}.csv
-#ping -c 5 ${HOSTS[i]} | head -9 | tail -1 | paste -sd ',' >> ${FileName}.csv
-#echo "Telnet connected to ${HOSTS[i]} Port 22 :- `(echo >/dev/tcp/${HOSTS[i]}/22) &>/dev/null && echo "Port Open" || echo "Port Closed"`" | paste -sd ',' >> ${FileName}.csv
-#echo "Telnet connected to ${HOSTS[i]} Port 4122 :- `(echo >/dev/tcp/${HOSTS[i]}/4122) &>/dev/null && echo "Port Open" || echo "Port Closed"`" | paste -sd ',' >> ${FileName}.csv
-#echo "======================================================================" | paste -sd ',' >> NameofFile
-
+echo "Host:${HOSTS[i]}"
+echo "port:${ports[i]}"
+pingd=(${PD//","/ })
+for j in ${!pingd[*]} ; do 
+pd1+=${pingd[j]}_
 done
 
-cp ${FileName}.csv /var/lib/jenkins/workspace/oldcsv
+td1=`(echo >/dev/tcp/${HOSTS[i]}/${ports[i]}) &>/dev/null && echo "Port Open" || echo "Port Closed"`
+td1=`echo "Telnet connected to ${HOSTS[i]} Port ${ports[i]} :-"$td1`
+
+
+fqdn1="$(echo -e "${fqdn1}" | tr -d '[:space:]')"
+
+a[$c]=$pd1 
+b[$c]=$fqdn1 
+d[$c]=$td1
+
+c=$((c+1));
+pd1=""
+hostname1=""
+td1=""
+#awk -F"," 'BEGIN { OFS = "," } {$8="$PD"; print}' ${FileName}.csv > Ping_Details_${FileName}.csv
+#awk -v pdd="$pd1" -v ip="$ipaddress" -F ',' '$1=="Host Details" {print};$1=="ip-172-31-44-205.us-east-2.compute.internal"  {printf "%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n",$1,$2,$3,$4,$5,$6,$7,$8,pdd,$10}' OFS="," ${FileName}.csv > Ping_Details1_${FileName}.csv
+#awk -v city="$pd1" -v ip="${HOSTS[i]}" -F ',' '$5==ip && $9=="pingdetais" {gsub("pingdetais",city,$9); print}' OFS="," ${FileName}.csv > Ping_Details1_${FileName}.csv  
+echo "end of pd awk"
+done
+k=0
+e[0]="172.31.44.205 "
+e[1]="172.31.32.38"
+for i in ${!HOSTS[*]} ; do 
+Ip_In=${b[$k]}
+echo "value$k: ${a[$k]} "
+echo "FDN$k: ${b[$k]}"
+echo "TDS$k: ${d[$k]}"
+echo "TDSE$k: ${e[$k]}"
+
+#awk -v pdd="${a[k]}" -v fq="$Ip_In" -v t="${d[$k]}" -F ',' '{ if($1=="Host Details" {print};$5==fq	 {printf "%s,%s,%s,%s,%s,%s,%s,%s,%s\n",$1,$2,$3,$4,$5,$6,$7,pdd,t}' OFS="," ${FileName}.csv
+
+awk -v pdd="${a[k]}" -v fq="${b[$k]}" -v t="${d[$k]}" -F ',' '{ if($5==fq) {printf "%s,%s,%s,%s,%s,%s,%s,%s,%s\n",$1,$2,$3,$4,$5,$6,$7,pdd,t}}' OFS="," ${FileName}.csv >> Ping_Details1_${FileName}.csv 
+
+#awk -v pdd="${a[k]}" -v fq="${b[$k]}" -v t="${d[$k]}" -F ',' '$1=="Host Details" {print};$5=="'${b[$k]}'"  {printf "%s,%s,%s,%s,%s,%s,%s,%s,%s\n",$1,$2,$3,$4,$5,$6,$7,pdd,t}' OFS="," ${FileName}.csv  
+
+Ip_In=""
+k=$((k+1));
+done
+
+#sed 's/$/;"${PD}"/' ${FileName}.csv
+
+#sed 's/$/;"$PD"/' ${FileName}.csv
+
+#echo "Telnet Status :-" | paste -sd ',' >> NameofFile 
+#echo "================"| paste -sd ','  >> NameofFile
+
+# for i in ${!HOSTS[*]} ; do 
+# #td1=`echo "Telnet connected to ${HOSTS[i]} Port ${ports[i]} :- `(echo >/dev/tcp/${HOSTS[i]}/${ports[i]}) &>/dev/null && echo "Port Open" || echo "Port Closed"`" `
+# echo "$td1"
+# td=`(echo >/dev/tcp/${HOSTS[i]}/${ports[i]}) &>/dev/null && echo "Port Open" || echo "Port Closed"`
+# td=`echo "Telnet connected to ${HOSTS[i]} Port ${ports[i]} :-"$td`
+# echo "$td"
+# #awk -v tds="$td" -F ',' '{gsub("td",tds,$10); print}' OFS="," Ping_Details_${FileName}.csv   > Telnet_Ping_Details_${FileName}.csv
+
+# #echo "Telnet connected to ${HOSTS[i]} Port 4122 :- `(echo >/dev/tcp/${HOSTS[i]}/4122) &>/dev/null && echo "Port Open" || echo "Port Closed"`" | paste -sd ',' >> NameofFile
+# #echo "======================================================================" | paste -sd ',' >> NameofFile
+
+# done
